@@ -96,7 +96,7 @@ func Test_jsonpath_JsonPathLookup_1(t *testing.T) {
 	if res_v, ok := res.([]interface{}); ok != true || res_v[0].(float64) != 8.95 || res_v[1].(float64) != 12.99 || res_v[2].(float64) != 8.99 || res_v[3].(float64) != 22.99 {
 		t.Errorf("exp: [8.95, 12.99, 8.99, 22.99], got: %v", res)
 	}
-	
+
 	// range
 	res, err = JsonPathLookup(json_data, "$.store.book[0:1].price")
 	t.Log(err, res)
@@ -239,7 +239,7 @@ var parse_token_cases = []map[string]interface{}{
 
 	map[string]interface{}{
 		"token": "$",
-		"op":    "root",
+		"op":    "key",
 		"key":   "$",
 		"args":  nil,
 	},
@@ -1179,13 +1179,13 @@ func Test_jsonpath_rootnode_is_array_range(t *testing.T) {
 		t.Logf("idx: %v, v: %v", idx, v)
 	}
 	if len(ares) != 2 {
-		t.Fatal("len is not 2. got: %v", len(ares))
+		t.Fatal(fmt.Sprintf("len is not 2. got: %v", len(ares)))
 	}
 	if ares[0].(float64) != 12.34 {
-		t.Fatal("idx: 0, should be 12.34. got: %v", ares[0])
+		t.Fatal(fmt.Sprintf("idx: 0, should be 12.34. got: %v", ares[0]))
 	}
 	if ares[1].(float64) != 13.34 {
-		t.Fatal("idx: 0, should be 12.34. got: %v", ares[1])
+		t.Fatal(fmt.Sprintf("idx: 0, should be 13.34. got: %v", ares[1]))
 	}
 }
 
@@ -1232,7 +1232,7 @@ func Test_jsonpath_rootnode_is_nested_array_range(t *testing.T) {
 		t.Logf("idx: %v, v: %v", idx, v)
 	}
 	if len(ares) != 2 {
-		t.Fatal("len is not 2. got: %v", len(ares))
+		t.Fatal(fmt.Sprintf("len is not 2. got: %v", len(ares)))
 	}
 
 	//FIXME: `$[:1].[0].test` got wrong result
@@ -1242,4 +1242,50 @@ func Test_jsonpath_rootnode_is_nested_array_range(t *testing.T) {
 	//if ares[1].(float64) != 3.1 {
 	//	t.Fatal("idx: 0, should be 3.1, got: %v", ares[1])
 	//}
+}
+
+func Test_jsonpath_filter_array_from_root(t *testing.T) {
+	data := `[{"a":{"b": 2.1, "c": {"x": 0}}},{"a":{"b":3.1,"c": {"x": 1}}},{"a":{"b":4.1, "c": {"x": 1}}}]`
+
+	var j interface{}
+
+	err := json.Unmarshal([]byte(data), &j)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := JsonPathLookup(j, "$[?(@.a.c.x > 0)]")
+	t.Log(res, err)
+	if err != nil {
+		t.Fatal("err:", err)
+	}
+	if res == nil {
+		t.Fatal("res is nil")
+	}
+
+	fmt.Println("response")
+	fmt.Println(res)
+}
+
+func Test_jsonpath_filter_object_from_root(t *testing.T) {
+	data := `{"root":[{"a":{"b": 1.1}}, {"a":{"b": 2.1, "c": {"x": 0}}},{"a":{"b":3.1,"c": {"x": 1}}},{"a":{"b":4.1, "c": {"x": 1}}}]}`
+
+	var j interface{}
+
+	err := json.Unmarshal([]byte(data), &j)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := JsonPathLookup(j, "$.root[?(@.a.c.x > 0)]")
+	t.Log(res, err)
+	if err != nil {
+		t.Fatal("err:", err)
+	}
+	if res == nil {
+		t.Fatal("res is nil")
+	}
+
+	fmt.Println("response")
+	fmt.Println(res)
 }

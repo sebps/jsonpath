@@ -45,10 +45,10 @@ func Compile(jpath string) (*Compiled, error) {
 	if err != nil {
 		return nil, err
 	}
-	if tokens[0] != "@" && tokens[0] != "$" {
-		return nil, fmt.Errorf("$ or @ should in front of path")
-	}
-	tokens = tokens[1:]
+	// if tokens[0] != "@" && tokens[0] != "$" {
+	// 	return nil, fmt.Errorf("$ or @ should in front of path")
+	// }
+	// tokens = tokens[1:]
 	res := Compiled{
 		path:  jpath,
 		steps: make([]step, len(tokens)),
@@ -150,11 +150,14 @@ func tokenize(query string) ([]string, error) {
 		token += string(x)
 		// //fmt.Printf("idx: %d, x: %s, token: %s, tokens: %v\n", idx, string(x), token, tokens)
 		if idx == 0 {
-			if token == "$" || token == "@" {
-				tokens = append(tokens, token[:])
-				token = ""
-				continue
-			} else {
+			// if token == "$" || token == "@" {
+			// 	tokens = append(tokens, token[:])
+			// 	token = ""
+			// 	continue
+			// } else {
+			// 	return nil, fmt.Errorf("should start with '$'")
+			// }
+			if token != "$" && token != "@" {
 				return nil, fmt.Errorf("should start with '$'")
 			}
 		}
@@ -215,12 +218,12 @@ func tokenize(query string) ([]string, error) {
 }
 
 /*
- op: "root", "key", "idx", "range", "filter", "scan"
+op: "root", "key", "idx", "range", "filter", "scan"
 */
 func parse_token(token string) (op string, key string, args interface{}, err error) {
-	if token == "$" {
+	/* if token == "$" {
 		return "root", "$", nil, nil
-	}
+	} */
 	if token == "*" {
 		return "scan", "*", nil, nil
 	}
@@ -334,6 +337,10 @@ func filter_get_from_explicit_path(obj interface{}, path string) (interface{}, e
 func get_key(obj interface{}, key string) (interface{}, error) {
 	if reflect.TypeOf(obj) == nil {
 		return nil, ErrGetFromNullObj
+	}
+	if key == "$" {
+		// special case return the whole obj if key represents the object root
+		return obj, nil
 	}
 	switch reflect.TypeOf(obj).Kind() {
 	case reflect.Map:
