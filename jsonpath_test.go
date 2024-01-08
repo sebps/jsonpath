@@ -1268,7 +1268,7 @@ func Test_jsonpath_filter_array_from_root(t *testing.T) {
 }
 
 func Test_jsonpath_filter_object_from_root(t *testing.T) {
-	data := `{"root":[{"a":{"b": 1.1}}, {"a":{"b": 2.1, "c": {"x": 0}}},{"a":{"b":3.1,"c": {"x": 1}}},{"a":{"b":4.1, "c": {"x": 1}}}]}`
+	data := `{"root":[{"a":{"b": 1.1, "c": {"x": 0}}}, {"a":{"b": 2.1, "c": {"x": 0}}},{"a":{"b":3.1,"c": {"x": 1}}},{"a":{"b":4.1, "c": {"x": 1}}}]}`
 
 	var j interface{}
 
@@ -1289,3 +1289,163 @@ func Test_jsonpath_filter_object_from_root(t *testing.T) {
 	fmt.Println("response")
 	fmt.Println(res)
 }
+
+func Test_jsonpath_filter_object_from_root_2(t *testing.T) {
+	data := `{"root":[{"sku":"record1"},{"sku":"record2"}]}`
+
+	var j interface{}
+
+	err := json.Unmarshal([]byte(data), &j)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := JsonPathLookup(j, "$[?(@.root.sku == record2)]")
+	t.Log(res, err)
+	if err != nil {
+		t.Fatal("err:", err)
+	}
+	if res == nil {
+		t.Fatal("res is nil")
+	}
+
+	fmt.Println("response")
+	fmt.Println(res)
+}
+
+func Test_jsonpath_filter_object_from_root_3(t *testing.T) {
+	data := `{ "root" : [{"sku" : "record1", "deep" : {"sku" : "record11"}}, {"sku" : "record2", "deep": {"sku": "record22"}}] }`
+
+	var j interface{}
+
+	err := json.Unmarshal([]byte(data), &j)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := JsonPathLookup(j, "$[?(@.root.deep.sku == record11)]")
+	t.Log(res, err)
+	if err != nil {
+		t.Fatal("err:", err)
+	}
+	if res == nil {
+		t.Fatal("res is nil")
+	}
+
+	fmt.Println("response")
+	fmt.Println(res)
+}
+
+func Test_jsonpath_filter_object_from_root_4(t *testing.T) {
+	data := `{ "root" : [{"sku" : "record1", "deep" : {"sku" : "record11"}}, {"sku" : "record2", "deep": {"sku": "record22"}}, {"sku" : "record3", "deep": {"sku": "record33"}}] }`
+
+	var j interface{}
+
+	err := json.Unmarshal([]byte(data), &j)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := JsonPathLookup(j, "$[?(@.root.sku in (record2,record3))]")
+	t.Log(res, err)
+	if err != nil {
+		t.Fatal("err:", err)
+	}
+	if res == nil {
+		t.Fatal("res is nil")
+	}
+
+	fmt.Println("response")
+	fmt.Println(res)
+}
+
+func Test_jsonpath_filter_object_from_root_5(t *testing.T) {
+	data := `{ "root" : [{"sku" : "record1", "deep" : {"sku" : "record11"}}, {"sku" : "record2", "deep": {"sku": "record22"}}, {"sku" : "record3", "deep": {"sku": "record33"}}] }`
+
+	var j interface{}
+
+	err := json.Unmarshal([]byte(data), &j)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := JsonPathLookup(j, "$[?(@.root.deep.sku in (record22,record33))]")
+	t.Log(res, err)
+	if err != nil {
+		t.Fatal("err:", err)
+	}
+	if res == nil {
+		t.Fatal("res is nil")
+	}
+
+	fmt.Println("response")
+	fmt.Println(res)
+}
+
+func Test_jsonpath_filter_array_from_root_1(t *testing.T) {
+	data := `[{"sku" : "record1", "deep" : {"sku" : "record11"}}, {"sku" : "record2", "deep": {"sku": "record22"}}, {"sku" : "record3", "deep": {"sku": "record33"}}]`
+
+	var j interface{}
+
+	err := json.Unmarshal([]byte(data), &j)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := JsonPathLookup(j, "$[?(@.deep.sku == record22)]")
+	t.Log(res, err)
+	if err != nil {
+		t.Fatal("err:", err)
+	}
+	if res == nil {
+		t.Fatal("res is nil")
+	}
+
+	fmt.Println("response")
+	fmt.Println(res)
+}
+func Test_jsonpath_filter_array_from_root_2(t *testing.T) {
+	data := `[{"sku" : "record1", "deep" : {"sku" : "record11"}}, {"sku" : "record2", "deep": {"sku": "record22"}}, {"sku" : "record3", "deep": {"sku": "record33"}}]`
+
+	var j interface{}
+
+	err := json.Unmarshal([]byte(data), &j)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := JsonPathLookup(j, "$[?(@.deep.sku in (record22,record33))]")
+	t.Log(res, err)
+	if err != nil {
+		t.Fatal("err:", err)
+	}
+	if res == nil {
+		t.Fatal("res is nil")
+	}
+
+	fmt.Println("response")
+	fmt.Println(res)
+}
+
+// func Test_jsonpath_filter_object_from_root_4(t *testing.T) {
+// 	data := `{"root":[{"sku":"record1","deep":[{"sku" :"record111"},{"sku":"record112"}]},{"sku":"record2","deep":[{"sku":"record221"},{"sku":"record222"}]}]}`
+
+// 	var j interface{}
+
+// 	err := json.Unmarshal([]byte(data), &j)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+
+// 	res, err := JsonPathLookup(j, "$.root.[?(@.deep.sku == record111)]")
+// 	t.Log(res, err)
+// 	if err != nil {
+// 		t.Fatal("err:", err)
+// 	}
+// 	if res == nil {
+// 		t.Fatal("res is nil")
+// 	}
+
+// 	fmt.Println("response")
+// 	fmt.Println(res)
+// }

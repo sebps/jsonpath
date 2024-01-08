@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/token"
 	"go/types"
+	"log"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -451,6 +452,129 @@ func regFilterCompile(rule string) (*regexp.Regexp, error) {
 	return regexp.Compile(string(runes))
 }
 
+func get_filtered_v0(obj, root interface{}, filter string) ([]interface{}, error) {
+	lp, op, rp, err := parse_filter(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	res := []interface{}{}
+
+	switch reflect.TypeOf(obj).Kind() {
+	case reflect.Slice:
+		if op == "=~" {
+			// regexp
+			pat, err := regFilterCompile(rp)
+			if err != nil {
+				return nil, err
+			}
+
+			for i := 0; i < reflect.ValueOf(obj).Len(); i++ {
+				tmp := reflect.ValueOf(obj).Index(i).Interface()
+				ok, err := eval_reg_filter(tmp, root, lp, pat)
+				if err != nil {
+					return nil, err
+				}
+				if ok == true {
+					res = append(res, tmp)
+				}
+			}
+		} else {
+			for i := 0; i < reflect.ValueOf(obj).Len(); i++ {
+				tmp := reflect.ValueOf(obj).Index(i).Interface()
+				ok, err := eval_filter(tmp, root, lp, op, rp)
+				if err != nil {
+					return nil, err
+				}
+				if ok == true {
+					res = append(res, tmp)
+				}
+			}
+		}
+		return res, nil
+	case reflect.Map:
+		if op == "=~" {
+			// regexp
+			pat, err := regFilterCompile(rp)
+			if err != nil {
+				return nil, err
+			}
+
+			for _, kv := range reflect.ValueOf(obj).MapKeys() {
+				tmp := reflect.ValueOf(obj).MapIndex(kv).Interface()
+				ok, err := eval_reg_filter(tmp, root, lp, pat)
+				if err != nil {
+					return nil, err
+				}
+				if ok == true {
+					res = append(res, tmp)
+				}
+			}
+		} else {
+			for _, kv := range reflect.ValueOf(obj).MapKeys() {
+				tmp := reflect.ValueOf(obj).MapIndex(kv).Interface()
+				switch reflect.TypeOf(tmp).Kind() {
+				case reflect.Array, reflect.Slice:
+					// reduce lp to pass to each array element
+					tokens, err := tokenize(lp)
+					if err != nil {
+						log.Fatal(err)
+					}
+					subLp := ""
+					for i := 0; i < len(tokens); i++ {
+						if i == 0 && tokens[i] == "@" {
+							subLp = "@"
+							continue
+						} else if subLp == "@" && i > 1 {
+							subLp = fmt.Sprintf("%s.%s", subLp, tokens[i])
+							continue
+						} else if subLp != "@" && i > 0 {
+							subLp = fmt.Sprintf("%s.%s", subLp, tokens[i])
+						}
+					}
+
+					// filter sub items
+					tmpType := reflect.ValueOf(tmp).Type()
+					subRes := reflect.MakeSlice(tmpType, 0, 0)
+					tmpItems := reflect.ValueOf(tmp)
+					for i := 0; i < tmpItems.Len(); i++ {
+						tmpItem := tmpItems.Index(i)
+						tmpItemI := tmpItem.Interface()
+						ok, err := eval_filter(tmpItemI, root, subLp, op, rp)
+						if err != nil {
+							return nil, err
+						}
+						if ok {
+							subRes = reflect.Append(subRes, tmpItem)
+						}
+					}
+
+					if subRes.Len() > 0 {
+						// replace tmp item slice by filtered item slice in parent obj
+						reflect.ValueOf(obj).SetMapIndex(kv, subRes)
+					} else {
+						reflect.ValueOf(obj).SetMapIndex(kv, reflect.Zero(reflect.TypeOf(obj).Elem()))
+					}
+				default:
+					ok, err := eval_filter(tmp, root, lp, op, rp)
+					if err != nil {
+						return nil, err
+					}
+					if ok == true {
+						res = append(res, tmp)
+					}
+				}
+			}
+			// append full object to results if matched
+			res = append(res, obj)
+		}
+	default:
+		return nil, fmt.Errorf("don't support filter on this type: %v", reflect.TypeOf(obj).Kind())
+	}
+
+	return res, nil
+}
+
 func get_filtered(obj, root interface{}, filter string) ([]interface{}, error) {
 	lp, op, rp, err := parse_filter(filter)
 	if err != nil {
@@ -512,12 +636,60 @@ func get_filtered(obj, root interface{}, filter string) ([]interface{}, error) {
 		} else {
 			for _, kv := range reflect.ValueOf(obj).MapKeys() {
 				tmp := reflect.ValueOf(obj).MapIndex(kv).Interface()
-				ok, err := eval_filter(tmp, root, lp, op, rp)
-				if err != nil {
-					return nil, err
-				}
-				if ok == true {
-					res = append(res, tmp)
+				switch reflect.TypeOf(tmp).Kind() {
+				case reflect.Array, reflect.Slice:
+					// reduce lp to pass to each array element
+					tokens, err := tokenize(lp)
+					if err != nil {
+						log.Fatal(err)
+					}
+					subLp := ""
+					for i := 0; i < len(tokens); i++ {
+						if i == 0 && tokens[i] == "@" {
+							subLp = "@"
+							continue
+						} else if subLp == "@" && i > 1 {
+							subLp = fmt.Sprintf("%s.%s", subLp, tokens[i])
+							continue
+						} else if subLp != "@" && i > 0 {
+							subLp = fmt.Sprintf("%s.%s", subLp, tokens[i])
+						}
+					}
+
+					// filter sub items
+					tmpType := reflect.ValueOf(tmp).Type()
+					subRes := reflect.MakeSlice(tmpType, 0, 0)
+					tmpItems := reflect.ValueOf(tmp)
+
+					for i := 0; i < tmpItems.Len(); i++ {
+						tmpItem := tmpItems.Index(i)
+						tmpItemI := tmpItem.Interface()
+						ok, err := eval_filter(tmpItemI, root, subLp, op, rp)
+						if err != nil {
+							return nil, err
+						}
+						if ok {
+							subRes = reflect.Append(subRes, tmpItem)
+						}
+					}
+
+					if subRes.Len() > 0 {
+						// replace tmp item slice by filtered item slice in parent obj
+						reflect.ValueOf(obj).SetMapIndex(kv, subRes)
+
+						// append full object to results if matched
+						res = append(res, obj)
+					} else {
+						reflect.ValueOf(obj).SetMapIndex(kv, reflect.Zero(reflect.TypeOf(obj).Elem()))
+					}
+				default:
+					ok, err := eval_filter(tmp, root, lp, op, rp)
+					if err != nil {
+						return nil, err
+					}
+					if ok == true {
+						res = append(res, obj)
+					}
 				}
 			}
 		}
@@ -699,20 +871,83 @@ func isNumber(o interface{}) bool {
 	return false
 }
 
+func isSlice(o interface{}) bool {
+	switch reflect.TypeOf(o).Kind() {
+	case reflect.Slice, reflect.Array:
+		return true
+	}
+	return false
+}
+
 func cmp_any(obj1, obj2 interface{}, op string) (bool, error) {
 	switch op {
-	case "<", "<=", "==", ">=", ">":
+	case "<", "<=", "==", ">=", ">", "in":
 	default:
 		return false, fmt.Errorf("op should only be <, <=, ==, >= and >")
 	}
 
-	var exp string
-	if isNumber(obj1) && isNumber(obj2) {
-		exp = fmt.Sprintf(`%v %s %v`, obj1, op, obj2)
+	var slice1, slice2 []interface{}
+	if isSlice(obj1) {
+		slice1 = obj1.([]interface{})
 	} else {
-		exp = fmt.Sprintf(`"%v" %s "%v"`, obj1, op, obj2)
+		slice1 = []interface{}{obj1}
 	}
-	//fmt.Println("exp: ", exp)
+
+	if op == "in" {
+		_, err := regexp.MatchString("\\([a-zA-Z0-9\\,]*\\)", obj2.(string))
+		if err != nil {
+			return false, errors.New("wrong value for filtering operator 'in', use of 'in' operator should follow the pattern : 'a.b in (a,b,c)")
+		}
+		slice2 = make([]interface{}, 0)
+		var cursor []rune
+		for _, c := range obj2.(string) {
+			if c == '(' {
+				continue
+			}
+			if c != ',' && c != ')' {
+				cursor = append(cursor, c)
+			} else {
+				slice2 = append(slice2, string(cursor))
+				cursor = cursor[:0]
+			}
+		}
+	} else {
+		slice2 = []interface{}{obj2}
+	}
+
+	var finalOp = op
+	if op == "in" {
+		finalOp = "=="
+	}
+
+	items1 := reflect.ValueOf(slice1)
+	items2 := reflect.ValueOf(slice2)
+	for i := 0; i < items1.Len(); i++ {
+		item1 := items1.Index(i)
+		for j := 0; j < items2.Len(); j++ {
+			item2 := items2.Index(j)
+
+			var exp string
+			if isNumber(item1.Interface()) && isNumber(item2.Interface()) {
+				exp = fmt.Sprintf(`%v %s %v`, item1.Interface(), finalOp, item2.Interface())
+			} else {
+				exp = fmt.Sprintf(`"%v" %s "%v"`, item1.Interface(), finalOp, item2.Interface())
+			}
+
+			res, err := do_cmp_any(exp)
+			if err != nil {
+				return res, err
+			}
+			if res {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}
+
+func do_cmp_any(exp string) (bool, error) {
 	fset := token.NewFileSet()
 	res, err := types.Eval(fset, nil, 0, exp)
 	if err != nil {
