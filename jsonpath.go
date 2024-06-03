@@ -880,6 +880,10 @@ func isSlice(o interface{}) bool {
 }
 
 func cmp_any(obj1, obj2 interface{}, op string) (bool, error) {
+	if obj1 == nil || obj2 == nil {
+		return false, nil
+	}
+
 	switch op {
 	case "<", "<=", "==", ">=", ">", "in":
 	default:
